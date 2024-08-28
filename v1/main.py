@@ -1,5 +1,9 @@
+import logging
 from config import *
 from flask import *
+import time
+
+logging.basicConfig(level=logging._ExcInfoType)
 
 conn.commit()
 
@@ -16,7 +20,7 @@ def webhook():
 
 
 
-@bot.message_handler(commands=['start'])
+@bot.message_handler()
 def welcome(msg):
     cid = msg.chat.id
     text = msg.text
@@ -28,11 +32,10 @@ def welcome(msg):
       bot.send_message(cid,f"""
 <b>👋 Salom {msg.from_user.first_name}!</b>
 
-<i>🎬 Kino kanalimizga kiring!
-🧑‍💻 Dasturchi: @Akhatkulov</i>""",reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton(text="🔎 Kanalimiz",url="https://t.me/anime_trendlar_rasmiy")))
+<i>🎬 Kino kanalimizga kiring!</i>""",reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton(text="🔎 Kanalimiz",url="https://t.me/Xeact_Uz")))
     elif text.split(" ")[0] and len(text)>5:
       code = text.split(" ")[1]
-      if 's' in code  and join(cid):
+      if 's' in code and join(cid,code):
         code = code.replace("s","")
         all = cursor.execute(f"SELECT * FROM serial WHERE id={code}").fetchone()
         if all:
@@ -47,12 +50,22 @@ def welcome(msg):
           key.add(*m)
           bot.send_photo(cid,photo=all[2],caption=f"<b>#{name} - seriali!\n\n🎬 Qisimlar: {len(json)}</b>",reply_markup=key)
           
-      elif 'f' in code  and join(cid):
+      elif 'f' in code and join(cid,code):
         code = code.replace("f","")
         check = cursor.execute(f"SELECT * FROM kino WHERE id={code}").fetchone()
         if check:
           json = cursor.execute(f"SELECT * FROM kino WHERE id={code}").fetchone()
-          bot.send_video(cid,json[1],caption=json[2].replace("||","'"),protect_content=True,reply_markup=share_button())
+          bot.send_video(cid,json[1],protect_content=True,reply_markup=share_button())
+        else:
+          bot.send_message(cid,"kod xato!")
+      elif 'F' in code:
+        code = code.replace("F","")
+        check = cursor.execute(f"SELECT * FROM kino WHERE id={code}").fetchone()
+        if check:
+          json = cursor.execute(f"SELECT * FROM kino WHERE id={code}").fetchone()
+          bot.send_video(cid,json[1],protect_content=True,reply_markup=share_button())
+        else:
+          bot.send_message(cid,"kod xato!")
         
 
 
@@ -61,7 +74,7 @@ def welcome(msg):
 
 @bot.message_handler(content_types=['video'])
 def add_video(msg):
-  if msg.chat.id==ADMIN_ID:
+  if msg.chat.id==ADMIN_ID or msg.chat.id == BOSHLIQ:
     file_id=msg.video.file_id
     caption = msg.caption
     FILE_ID['id'] = file_id
@@ -77,7 +90,7 @@ def add_video(msg):
 def custom(msg):
   cid = msg.chat.id
   text = msg.text
-  if text=='/panel' and cid==ADMIN_ID:
+  if text=='/panel' and cid==BOSHLIQ:
     bot.reply_to(msg,"<b>Admin panelga xush kelibsiz!</b>",reply_markup=admin_panel())
   try:
     if text=="📊 Statistika":
@@ -89,7 +102,7 @@ def custom(msg):
         txt = f"""<b>
 Bot statistikasi 📊
 
-👤 Obunachilar: {users+1000} ta  
+👤 Obunachilar: {users} ta  
 🎥 Kinolar: {kino} ta
 
 📺 Seriallar: {count_serial} ta
@@ -102,19 +115,19 @@ Bot statistikasi 📊
         print(e)
 
       
-    if text=="✉ Oddiy xabar" and cid==ADMIN_ID:
+    if text=="✉ Oddiy xabar" and cid==BOSHLIQ:
       a = bot.send_message(cid,"<b>Xabar matnini kiriting: </b>")
       bot.register_next_step_handler(a,oddiy_xabar)
-    elif text=="✉ Forward xabar" and cid==ADMIN_ID:
+    elif text=="✉ Forward xabar" and cid==BOSHLIQ:
       a = bot.send_message(cid,"<b>Xabar matnini yuboring: </b>")
       bot.register_next_step_handler(a,forward_xabar)
-    elif text=="➕ Serial qo'shish" and cid==ADMIN_ID:
+    elif text=="➕ Serial qo'shish" and cid==BOSHLIQ:
       a = bot.send_message(cid,"<b>Seryal nomini yuboring!</b>",reply_markup=back)
       bot.register_next_step_handler(a,new_serial)
-    elif text=="🗑 Kino ochirish" and cid==ADMIN_ID:
+    elif text=="🗑 Kino ochirish" and cid==BOSHLIQ:
       a = bot.send_message(cid,"<b>🎥 Kino kodini yuboring!</b>",reply_markup=back)
       bot.register_next_step_handler(a,del_kino)
-    elif text=="📺 Seriallar" and cid==ADMIN_ID:
+    elif text=="📺 Seriallar" and cid==BOSHLIQ:
       js = cursor.execute("SELECT * FROM serial").fetchall()
       key = InlineKeyboardMarkup()
       for i in js:
@@ -131,18 +144,7 @@ Bot statistikasi 📊
 def callback(call):
   cid = call.message.chat.id
   mid = call.message.id
-  data = call.data
-  if data=="member":
-    bot.delete_message(cid,mid)
-    if join(cid):
-      bot.send_message(cid,f"""
-<b>👋 Salom {call.message.from_user.first_name}!</b>
-
-<i>🎬 Kino kanalimizga kiring!
-🧑‍💻 Dasturchi: @Akhatkulov
-</i>
-""",reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton(text="🔎 Kanalimiz",url="t.me/Akhatkulov")))
-      
+  data = call.data      
     
   if data=='solo':
     try:
@@ -154,7 +156,7 @@ def callback(call):
       else:
         code = all[-1][0]+1
       cursor.execute(f"INSERT INTO kino(file_id,caption) VALUES('{file_id}','{caption}')")
-      bot.send_video(cid,video=file_id,caption=caption.replace("||","'"),reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton(text="📥 Yuklab olish",url=f"https://t.me/AniTrend_Robot?start=f{code}")))
+      bot.send_video(cid,video=file_id,caption=f"https://xeact.uz/link.php?link=f{code}",reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton(text="📥 Yuklab olish",url=f"https://t.me/Xeact_bot?start=f{code}")))
 
     except Exception as e:
       print(e)
@@ -170,7 +172,7 @@ def callback(call):
       code = all[-1][0]+1
     serial = cursor.execute(f"SELECT * FROM serial WHERE id={id}").fetchone()[1]
     cursor.execute(f"INSERT INTO movies(file_id,caption,serial) VALUES('{file_id}','{caption}','{serial}')")
-    bot.send_video(cid,video=file_id,caption=caption.replace("||","'"),reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton(text="📥 Yuklab olish",url=f"https://t.me/AniTrend_Robot?start=s{id}")))
+    bot.send_video(cid,video=file_id,caption=f"https://xeact.uz/link.php?link=s{id}",reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton(text="📥 Yuklab olish",url=f"https://t.me/Xeact_bot?start=s{id}")))
   
   elif "yukla" in data:
     id  = data.split("-")[1]
@@ -188,7 +190,7 @@ def callback(call):
       m.append(InlineKeyboardButton(text=f"🗑 {c}",callback_data=f'del-{i[0]}'))
     key.add(*m)
     key.add(InlineKeyboardButton(text=f"❌ Serial",callback_data=f'remove-{id}'),InlineKeyboardButton(text=f"Post share",callback_data=f'share-{id}'))
-    bot.send_photo(cid,photo=json[2],caption=f"<b>🎥 Serial: {json[1]}\n📥 Yuklash: https://t.me/AniTrend_Robot?start=s{id}\n🎬 Qisimlar: {c}</b>",reply_markup=key)
+    bot.send_photo(cid,photo=json[2],caption=f"<b>🎥 Serial: {json[1]}\n📥 Yuklash: https://xeact.uz/link.php?link=s{id}\n🎬 Qisimlar: {c}</b>",reply_markup=key)
   elif "del" in data:
     id  = data.split("-")[1]
     bot.delete_message(cid,mid)
@@ -210,9 +212,9 @@ def callback(call):
     bot.send_message(cid,"<b>❌ Serial o'chirildi!</b>",reply_markup=key)
   elif "share" in data:
     id  = data.split("-")[1]
-    js = cursor.execute(F"SELECT * FROM serial WHERE id={id}").fetchone()
+    js = cursor.execute(f"SELECT * FROM serial WHERE id={id}").fetchone()
     print(js)
-    bot.send_photo("@Anime_trendlar_rasmiy",photo=js[2],caption=f""""<b>
+    bot.send_photo("@Akhatkulov",photo=js[2],caption=f""""<b>
 🎬 Nomi: {js[1]} 
 
 🗣 Ovoz berdi : AniTrend
@@ -222,11 +224,10 @@ def callback(call):
 📆 Yili: 2023
 
 #⃣ #{js[1]}
-
-🍿 @Akhatkulov
 </b>
-""",reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton(text="📥 Yuklab olish",url=f"https://t.me/AniTrend_Robot?start=s{id}")))
+""",reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton(text="📥 Yuklab olish",url=f"https://t.me/Xeact_bot?start=s{id}")))
 
 
 #app.run(host='0.0.0.0', port=81)
-bot.infinty_polling()
+print(bot.get_me())
+bot.polling()
