@@ -10,11 +10,6 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     cid = Column(BigInteger, unique=True)
     step = Column(VARCHAR(25), default=0)
-    ball = Column(Integer)
-    name = Column(String)
-    phone = Column(String)
-
-
 
 class Channels(Base):
     __tablename__ = 'channels_ball'
@@ -43,7 +38,7 @@ def user_count():
 
 def create_user(cid,name):
     try:
-        user = User(cid=int(cid), step="0", ball=0,name=name,phone="*")
+        user = User(cid=int(cid), step="0")
         session.add(user)
         session.commit()
     except SQLAlchemyError as e:

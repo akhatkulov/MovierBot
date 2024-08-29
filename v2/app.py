@@ -6,8 +6,12 @@ from data.alchemy import create_user, get_step, put_step, user_count, get_all_us
 
 from helper.buttons import admin_buttons,channel_control,join_key,start_button
 from helper.decode import decode
-from helper.msg_getter import get_messages
+from helper.encode import encode
+from helper.msg_getter import get_messages,get_message_id
 import conf
+from time import time
+# import parts
+
 
 bot = telebot.TeleBot(conf.BOT_TOKEN, parse_mode="html")
 client = bot
@@ -58,6 +62,63 @@ def _human_time_duration(seconds):
             parts.append(f'{amount} {unit}{"" if amount == 1 else "s"}')
     return ", ".join(parts)
 
+
+
+#no command upload
+
+@bot.message_handler(func=lambda message: True)
+def channel_post(message):
+    print("No command,",message.chat.id)
+    if str(message.chat.id) in conf.ADMINS:
+        reply_text = bot.reply_to(message, "<code>Bir daqiqa kuting...</code>", parse_mode='HTML')
+        try:
+            post_message = bot.copy_message(
+                chat_id=conf.CHANNEL_ID, from_chat_id=message.chat.id, message_id=message.message_id, disable_notification=True
+            )
+        except ApiException as e:
+            if e.error_code == 429:  # FloodWait exception
+                time_to_wait = e.parameters['retry_after']
+                bot.send_message(message.chat.id, f"Flood kutish. {time_to_wait} soniyadan keyin qayta uriniladi.")
+                time.sleep(time_to_wait)
+                post_message = bot.copy_message(
+                    chat_id=conf.CHANNEL_ID, from_chat_id=message.chat.id, message_id=message.message_id, disable_notification=True
+                )
+            else:
+                bot.edit_message_text("<b>Xatolik yuz berdi...</b>", chat_id=reply_text.chat.id, message_id=reply_text.message_id, parse_mode='HTML')
+                return
+        except Exception as e:
+            print(e)
+            bot.edit_message_text("<b>Xatolik yuz berdi...</b>", chat_id=reply_text.chat.id, message_id=reply_text.message_id, parse_mode='HTML')
+            return
+
+        converted_id = post_message.message_id * abs(int(conf.CHANNEL_ID))
+        string = f"get-{converted_id}"
+        base64_string = encode(string)
+        link = f"https://t.me/{bot.get_me().username}?start={base64_string}"
+
+
+        bot.edit_message_text(
+            f"<b>Fayl almashish havolasi muvaffaqiyatli yaratildi:</b>\n\n{link}",
+            chat_id=reply_text.chat.id,
+            message_id=reply_text.message_id,
+            parse_mode='HTML'
+        )
+
+        if not conf.DISABLE_CHANNEL_BUTTON:
+            try:
+                bot.edit_message_reply_markup(
+                    chat_id=post_message.chat.id,
+                    message_id=post_message.message_id,
+                    reply_markup=reply_markup
+                )
+            except Exception:
+                pass
+    else:
+        bot.send_message(chat_id=message.chat.id,text="Brat siz admin emassiz(")
+
+
+
+
 @bot.message_handler(commands=["start"])
 def start_command(message: telebot.types.Message):
     user_id = message.from_user.id
@@ -72,7 +133,8 @@ def start_command(message: telebot.types.Message):
     if len(text) > 7 and join(user_id=message.chat.id,ref_code=text.split()[1]):
         try:
             base64_string = text.split(" ", 1)[1]
-        except BaseException:
+        except Exception as e:
+            print("error:",e)
             return
 
         # Ensure decode returns a string
@@ -91,11 +153,13 @@ def start_command(message: telebot.types.Message):
             try:
                 start = int(int(argument[1]) / abs(client.db_channel.id))
                 end = int(int(argument[2]) / abs(client.db_channel.id))
+                print(start,end)
             except Exception as e:
                 print("error suka:",e)
                 return 
             if start <= end:
-                ids = range(start, end + 1)
+                ids = list(range(start, end + 1))
+                print(ids)
             else:
                 ids = []
                 i = start
@@ -104,11 +168,13 @@ def start_command(message: telebot.types.Message):
                     i -= 1
                     if i < end:
                         break
+                print(ids)
         elif len(argument) == 2:
             try:
                 ids = [int(int(argument[1]) / abs(client.db_channel.id))]
             except BaseException:
                 return
+            print(ids)
 
         temp_msg = bot.reply_to(message, "<code>iltimos kuting...</code>")
         try:
@@ -118,51 +184,54 @@ def start_command(message: telebot.types.Message):
             bot.reply_to(message, "<b>Xatolik </b>🥺")
             return
         bot.delete_message(temp_msg.chat.id, temp_msg.message_id)
-
+        print(messages)
         for msg in messages:
-            if bool(CUSTOM_CAPTION) and bool(msg.document):
-                caption = CUSTOM_CAPTION.format(
-                    previouscaption=msg.caption.html if msg.caption else "",
+            caption = (
+                conf.CUSTOM_CAPTION.format(
+                    previouscaption=msg.caption if msg.caption else "",
                     filename=msg.document.file_name,
                 )
-            else:
-                caption = msg.caption.html if msg.caption else ""
+                if conf.CUSTOM_CAPTION and msg.document
+                else msg.caption if msg.caption else ""
+            )
 
-            reply_markup = msg.reply_markup if DISABLE_CHANNEL_BUTTON else None
+            reply_markup = msg.reply_markup if not conf.DISABLE_CHANNEL_BUTTON else None
             try:
-                bot.send_message(
+                bot.copy_message(
                     chat_id=message.from_user.id,
-                    text=msg.text,
+                    from_chat_id=msg.chat.id,
+                    message_id=msg.message_id,
                     caption=caption,
-                    parse_mode="HTML",
-                    protect_content=PROTECT_CONTENT,
-                    reply_markup=reply_markup,
+                    parse_mode='HTML',
+                    protect_content=conf.PROTECT_CONTENT,
+                    reply_markup=reply_markup
                 )
-                time.sleep(0.5)
+                asyncio.sleep(0.5)
             except telebot.apihelper.ApiException as e:
-                if e.result_json['description'] == 'Too Many Requests: retry after':
-                    time.sleep(e.result_json['parameters']['retry_after'])
-                    bot.send_message(
+                if e.result_code == 429:
+                    asyncio.sleep(e.retry_after)
+                    bot.copy_message(
                         chat_id=message.from_user.id,
-                        text=msg.text,
+                        from_chat_id=msg.chat.id,
+                        message_id=msg.message_id,
                         caption=caption,
-                        parse_mode="HTML",
-                        protect_content=PROTECT_CONTENT,
-                        reply_markup=reply_markup,
+                        parse_mode='HTML',
+                        protect_content=conf.PROTECT_CONTENT,
+                        reply_markup=reply_markup
                     )
-                else:
-                    pass
+            except:
+                pass
     else:
         bot.send_message(
-            chat_id=message.chat.id,
-            text=conf.START_MSG.format(
+            message.chat.id,
+            conf.START_MSG.format(
                 first=message.from_user.first_name,
                 last=message.from_user.last_name,
-                username=f"@{message.from_user.username}" if message.from_user.username else None,
                 id=message.from_user.id,
             ),
             reply_markup=start_button(bot),
             disable_web_page_preview=True,
+            parse_mode='HTML'
         )
 
 
@@ -191,18 +260,78 @@ def not_joined(message):
     )
 
 
-@bot.message_handler(commands=["users", "stats"])
-def get_users(message):
-    if message.from_user.id in ADMINS:
-        msg = bot.send_message(
-            chat_id=message.chat.id, text="<code>Yuklanmoqda ...</code>"
-        )
-        users = full_userbase()
-        bot.edit_message_text(
-            chat_id=message.chat.id,
-            message_id=msg.message_id,
-            text=f"{len(users)} <b>Foydalanuvchilar soni</b>",
-        )
+# Handle the /batch command
+@bot.message_handler(commands=['batch'])
+def batch(message):
+    if str(message.chat.id) in conf.ADMINS:
+        print(message.chat.id)
+
+        chat_id = message.chat.id
+
+        msg = bot.send_message(chat_id, "<b>Iltimos, birinchi xabarni/faylni ma'lumotlar bazasi kanalidan yuboring. (Qoute bilan yo'naltirish)</b>\n\n<b>yoki Kanal ma'lumotlar bazasidan post havolasini yuboring</b>", parse_mode="HTML")
+        bot.register_next_step_handler(msg, process_first_message)
+    else:
+        bot.send_message(chat_id=message.chat.id,text="Brat siz admin emassiz(")
+
+def process_first_message(message):
+    chat_id = message.chat.id
+
+    try:
+        f_msg_id = get_message_id(message)
+        print(f_msg_id)
+        if f_msg_id:
+            msg = bot.send_message(chat_id, "<b>Iltimos, oxirgi xabarni/faylni ma'lumotlar bazasi kanalidan yuboring. (Qoute bilan yo'naltirish)</b>\n\n<b>yoki Kanal ma'lumotlar bazasidan post havolasini yuboring</b>", parse_mode="HTML")
+            bot.register_next_step_handler(msg, process_second_message, f_msg_id)
+        else:
+            bot.send_message(chat_id, "❌ <b>XATO</b>\n\n<b>Ushbu yoʻnaltirilgan post maʼlumotlar bazasi kanalidan emas</b>", parse_mode="HTML")
+            print(message)
+            batch(message)
+    except Exception as e:
+        bot.send_message(chat_id, str(e))
+
+def process_second_message(message, f_msg_id):
+    chat_id = message.chat.id
+
+    try:
+        s_msg_id = get_message_id(message)
+        if s_msg_id:
+            string = f"get-{f_msg_id * abs(bot.db_channel.id)}-{s_msg_id * abs(bot.db_channel.id)}"
+            base64_string = encode(string)
+            link = f"https://t.me/{bot.get_me().username}?start={base64_string}"
+            bot.send_message(chat_id, f"<b>Fayl almashish havolasi muvaffaqiyatli yaratildi:</b>\n\n{link}", parse_mode="HTML")
+        else:
+            bot.send_message(chat_id, "❌ <b>XATO</b>\n\n<b>Ushbu yoʻnaltirilgan post maʼlumotlar bazasi kanalidan emas</b>", parse_mode="HTML")
+            batch(message)
+    except Exception as e:
+        bot.send_message(chat_id, str(e))
+
+
+# Handle the /genlink command
+@bot.message_handler(commands=['genlink'])
+def link_generator(message):
+    if str(message.from_user.id) not in conf.ADMINS:
+        return
+
+    chat_id = message.chat.id
+
+    msg = bot.send_message(chat_id, "<b>Ma'lumotlar bazasi kanalidan xabarlarni yo'naltiring. (Qoute bilan yo'naltirish)</b>\n\n<b>yoki Kanal ma'lumotlar bazasidan post havolasini yuboring</b>", parse_mode="HTML")
+    bot.register_next_step_handler(msg, process_channel_message)
+
+def process_channel_message(message):
+    chat_id = message.chat.id
+
+    try:
+        msg_id = get_message_id(message)
+        if msg_id:
+            base64_string = encode(f"get-{msg_id * abs(bot.db_channel.id)}")
+            link = f"https://t.me/{bot.get_me().username}?start={base64_string}"
+            bot.send_message(chat_id, f"<b>Fayl almashish havolasi muvaffaqiyatli yaratildi:</b>\n\n{link}", parse_mode="HTML")
+        else:
+            bot.send_message(chat_id, "❌ <b>XATO</b>\n\n<b>Ushbu yoʻnaltirilgan post maʼlumotlar bazasi kanalidan emas</b>", parse_mode="HTML")
+            link_generator(message)
+    except Exception as e:
+        bot.send_message(chat_id, str(e))
+
 
 
 @bot.message_handler(commands=["broadcast"])
@@ -255,7 +384,7 @@ ochirilgan hisoblar: <code>{deleted}</code></b>"""
         else:
             msg = bot.reply_to(
                 message,
-                "<code>Gunakan Perintah ini Harus Sambil Reply ke pesan telegram yang ingin di Broadcast.</code>",
+                "<code>Efirga uzatmoqchi boʻlgan telegramma xabariga javob berishda ushbu buyruqdan foydalaning.</code>",
             )
             asyncio.sleep(8)
             bot.delete_message(message.chat.id, msg.message_id)
