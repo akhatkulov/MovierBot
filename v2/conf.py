@@ -1,11 +1,11 @@
-BOT_TOKEN = "5899601127:AAGWIjpikVaUOuyNuqre1N3NvCnZJ--QEp8" # @botfather
+BOT_TOKEN = "5899601127:AAGWIjpikVaUOuyNuqre1N3NvCnZJ--QEp8" # @botfather # 6574267998:AAF6hn7xtmGrLC8fF3BESF_iFiWaGlh9IIA #
 TG_BOT_TOKEN = BOT_TOKEN
 ADMIN_ID = 789945598 # admin id
 DB_URL = 'sqlite:///database.sql' #please put login and password
 
-START_MSG = """Bu bot orqali kanaldagi animelarni yuklab olishingiz mumkin
+START_MSG = """<b>Bu bot orqali kanaldagi animelarni yuklab olishingiz mumkin
 
-❗️Botga habar yozmang❗️"""
+❗️Botga habar yozmang❗️</b>"""
 
 ADMINS = ["1762201210",str(ADMIN_ID)]
 
@@ -17,13 +17,13 @@ CHANNEL_ID = "-1002217580580"
 CHANNEL_URL = "https://t.me/c/2217580580/"
 
 FORCE_SUB_MESSAGE = "<b>Animeni yuklab olish uchun quyidagi kanallarga obuna bo'lgan bo'lishingiz kerak:</b>"
-
+DEFAULT_START_TEXT = "<b>Animeni yuklab olish uchun quyidagi kanallarga obuna bo'lgan bo'lishingiz kerak:</b>"
 OWNER = "Sukine"
 BOT_USERNAME = "UzMatnBot"
 TG_BOT_WORKERS = 4
 DISABLE_CHANNEL_BUTTON = False
-PROTECT_CONTENT = "False"
-CUSTOM_CAPTION = "True"
+PROTECT_CONTENT = False
+CUSTOM_CAPTION = True
 START_MESSAGE = """<b>Bu bot orqali kanaldagi animelarni yuklab olishingiz mumkin
 
 ❗Botga habar yozmang❗</b>"""
