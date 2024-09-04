@@ -10,6 +10,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     cid = Column(BigInteger, unique=True)
     step = Column(VARCHAR(25), default=0)
+    arg = Column(VARCHAR(25),default="***")
 
 class Channels(Base):
     __tablename__ = 'channels_ball'
@@ -38,7 +39,7 @@ def user_count():
 
 def create_user(cid,name):
     try:
-        user = User(cid=int(cid), step="0")
+        user = User(cid=int(cid), step="0",arg="***")
         session.add(user)
         session.commit()
     except SQLAlchemyError as e:
@@ -55,7 +56,24 @@ def get_members():
     finally:
         session.close()
  
+def get_arg(cid):
+    try:
+        x = session.query(User).filter_by(cid=cid).first()
+        return x.arg if x else None
+    finally:
+        session.close()
 
+def put_arg(cid,arg):
+    try:
+        x = session.query(User).filter_by(cid=cid).first()
+        if x:
+            x.arg = arg 
+            session.commit()
+            return True
+    except SQLAlchemyError as e:
+        session.rollback()
+        print(f"Error: {e}")
+        return False
 
 def get_step(cid):
     try:

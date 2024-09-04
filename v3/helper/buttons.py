@@ -24,14 +24,22 @@ def channel_control():
 async def join_key(ref_code, confirm):
     keyboard = InlineKeyboardMarkup(row_width=1)
     channels = get_channel()
+    print("Channels:", channels)
+    
     for channel_id in channels:
         chat = await bot.get_chat(chat_id="@" + channel_id)
         ch_name = chat.title
+        print(f"Adding button for channel: {ch_name} ({channel_id})")
         keyboard.add(
-            InlineKeyboardButton(text=ch_name, url=f"https://t.me/{channel_id}")
+            InlineKeyboardButton(text=f"{ch_name}", url=f"https://t.me/{channel_id}")
         )
+    
     if confirm == "yes":
-        keyboard.add(InlineKeyboardButton(text='✅ Tasdiqlash', url=f'https://t.me/{conf.BOT_USERNAME}?start={ref_code}'))
+        keyboard.add(
+            InlineKeyboardButton(text='✅ Tasdiqlash', url=f'https://t.me/{conf.BOT_USERNAME}?start={ref_code}')
+        )
+    
+    print("Keyboard JSON:", keyboard.to_python())
     return keyboard
 
 def start_button():

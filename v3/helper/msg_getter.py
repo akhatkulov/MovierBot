@@ -35,8 +35,8 @@ async def get_messages(client, message_ids):
             print("xabar topilmadi!")
     return messages
 
-def get_message_id(message):
-    if message.forward_from_chat and message.forward_from_chat.id == conf.CHANNEL_ID:
+async def get_message_id(message: types.Message) -> int:
+    if message.forward_from_chat and message.forward_from_chat.id == int(conf.CHANNEL_ID):
         return message.forward_from_message_id
     elif message.forward_from_chat or message.forward_sender_name or not message.text:
         return 0
@@ -48,6 +48,8 @@ def get_message_id(message):
         channel_id = matches.group(1)
         msg_id = int(matches.group(2))
         if channel_id.isdigit():
+            print("channel_id: ",channel_id)
+
             if f"-100{channel_id}" == str(conf.CHANNEL_ID):
                 return msg_id
         elif channel_id == conf.CHANNEL_USERNAME:

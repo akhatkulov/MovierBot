@@ -2,7 +2,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
 from datetime import datetime
 from data.alchemy import create_user, get_step, put_step, user_count, get_all_user, \
-    get_channel, put_channel, get_channel_with_id, delete_channel
+    get_channel, put_channel, get_channel_with_id, delete_channel,get_arg,put_arg
 
 from helper.buttons import admin_buttons, channel_control, join_key, start_button, main_button
 from helper.decode import decode
@@ -34,7 +34,7 @@ async def join(user_id, ref_code, confirm):
         if r != len(xx):
             await bot.send_message(user_id,
                                    "<b>Animeni yuklab olish uchun quyidagi kanallarga obuna bo'lgan bo'lishingiz kerak:</b>",
-                                   parse_mode='html', reply_markup=join_key(ref_code, confirm=confirm))
+                                   parse_mode='html', reply_markup=await join_key(ref_code, confirm=confirm))
             return False
         else:
             return True
@@ -78,6 +78,120 @@ def _human_time_duration(seconds):
         if amount > 0:
             parts.append(f'{amount} {unit}{"" if amount == 1 else "s"}')
     return ", ".join(parts)
+
+
+
+
+
+
+@dp.message_handler(content_types=['video'])
+async def put_videos(message: types.Message):
+    step = get_step(cid=message.chat.id)
+    print("step", step)
+    print(message.video)
+    if step == "start_put_video":
+        reply_text = await message.reply("<code>Bir daqiqa kuting...</code>", parse_mode='HTML')
+        try:
+            post_message = await bot.copy_message(
+                chat_id=conf.CHANNEL_ID, from_chat_id=message.chat.id, message_id=message.message_id, disable_notification=True
+            )
+        except FloodWait as e:
+            time_to_wait = e.retry_after
+            await bot.send_message(message.chat.id, f"Flood kutish. {time_to_wait} soniyadan keyin qayta uriniladi.")
+            await asyncio.sleep(time_to_wait)
+            post_message = await bot.copy_message(
+                chat_id=conf.CHANNEL_ID, from_chat_id=message.chat.id, message_id=message.message_id, disable_notification=True
+            )
+        except Exception as e:
+            print("Error",e)
+            await bot.edit_message_text("<b>Xatolik yuz berdi...</b>", chat_id=reply_text.chat.id, message_id=reply_text.message_id, parse_mode='HTML')
+            return
+
+        converted_id = post_message.message_id * abs(int(conf.CHANNEL_ID))
+        print("convert id: ",converted_id)
+        string = f"get-{converted_id}"
+        print("string: ",string)
+        base64_string = encode(string)
+        print("64",base64_string)
+        link = f"https://t.me/{conf.BOT_USERNAME}?start={base64_string}"
+        print("link: ",link)
+
+
+        await bot.edit_message_text(
+            f"<b>Fayl almashish havolasi muvaffaqiyatli yaratildi:</b>\n\n{link}",
+            chat_id=reply_text.chat.id,
+            message_id=reply_text.message_id,
+            parse_mode='HTML'
+        )
+
+        if not conf.DISABLE_CHANNEL_BUTTON:
+            try:
+                await bot.edit_message_reply_markup(
+                    chat_id=post_message.chat.id,
+                    message_id=post_message.message_id,
+                    reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton(text="Channel Button", url=link))
+                )
+            except Exception:
+                pass
+
+
+    if get_step(cid=message.chat.id) == "batch_2":
+        chat_id = message.chat.id
+
+        try:
+            s_msg_id = await get_message_id(message)
+            f_msg_id = get_arg(cid=chat_id)
+            print("fayl id olindi",f_msg_id,"---",s_msg_id)
+            if s_msg_id:
+                print("----true----")
+                string = f"get-{int(f_msg_id) * abs(int(conf.CHANNEL_ID))}-{int(s_msg_id) * abs(int(conf.CHANNEL_ID))}"
+                print(string)
+                base64_string = encode(string)
+                link = f"https://t.me/{conf.BOT_USERNAME}?start={base64_string}"
+                await bot.send_message(
+                    chat_id, 
+                        f"<b>Fayl almashish havolasi muvaffaqiyatli yaratildi:</b>\n\n{link}", 
+                        parse_mode="HTML"
+                    )
+                
+                put_arg(cid=chat_id,arg="***")
+                put_step(cid=chat_id,step="!!!")
+            else:
+                await bot.send_message(
+                    chat_id,
+                    "❌ <b>XATO</b>\n\n<b>Ushbu yoʻnaltirilgan post maʼlumotlar bazasi kanalidan emas</b>",
+                    parse_mode="HTML"
+                )
+                put_step(cid=chat_id,step="!!!")
+        except Exception as e:
+            await bot.send_message(chat_id, str(e))
+
+
+    if get_step(cid=message.chat.id)=="batch_1":
+        chat_id = message.chat.id
+
+        try:
+            f_msg_id = await get_message_id(message)
+            if f_msg_id:
+                msg = await bot.send_message(
+                    chat_id,
+                    "<b>Iltimos, oxirgi xabarni/faylni ma'lumotlar bazasi kanalidan yuboring. (Qoute bilan yo'naltirish)</b>\n\n"
+                    "<b>yoki Kanal ma'lumotlar bazasidan post havolasini yuboring</b>",
+                    parse_mode="HTML"
+                )
+                print(f"fayl id 1: {f_msg_id}")
+                put_arg(cid=chat_id,arg=f"{f_msg_id}")
+                put_step(cid=chat_id,step="batch_2")
+            else:
+                await bot.send_message(
+                chat_id,
+                "❌ <b>XATO</b>\n\n<b>Ushbu yoʻnaltirilgan post maʼlumotlar bazasi kanalidan emas</b>",
+                parse_mode="HTML"
+                )
+        except Exception as e:
+            await bot.send_message(chat_id, str(e))
+        
+
 
 
 
@@ -189,7 +303,7 @@ async def start_command(message: types.Message):
         if not await check_join(user_id=message.chat.id):
             await bot.send_message(message.chat.id,
                                    conf.DEFAULT_START_TEXT,
-                                   reply_markup=join_key(ref_code="!!!", confirm="no"),
+                                   reply_markup=await join_key(ref_code="!!!", confirm="no"),
                                    disable_web_page_preview=True,
                                    parse_mode='HTML'
                                   )
@@ -201,13 +315,54 @@ async def start_command(message: types.Message):
 @dp.message_handler(commands=['batch'])
 async def batch(message: types.Message):
     if str(message.chat.id) in conf.ADMINS:
-        print(message.chat.id)
         chat_id = message.chat.id
-        msg = await bot.send_message(chat_id, "<b>Iltimos, birinchi xabarni/faylni ma'lumotlar bazasi kanalidan yuboring. (Qoute bilan yo'naltirish)</b>\n\n<b>yoki Kanal ma'lumotlar bazasidan post havolasini yuboring</b>", parse_mode="HTML")
-        await dp.register_message_handler(process_first_message, state="*", content_types=types.ContentTypes.ANY)
-        # Assuming the state is set for the next step
+
+        msg = await bot.send_message(
+            chat_id,
+            "<b>Iltimos, birinchi xabarni/faylni ma'lumotlar bazasi kanalidan yuboring. (Qoute bilan yo'naltirish)</b>\n\n"
+            "<b>yoki Kanal ma'lumotlar bazasidan post havolasini yuboring</b>",
+            parse_mode="HTML"
+        )
+        put_step(cid=chat_id,step="batch_1")
+
     else:
         await bot.send_message(chat_id=message.chat.id, text="Brat siz admin emassiz(")
+
+async def process_first_message(message: types.Message):
+    chat_id = message.chat.id
+
+    try:
+        f_msg_id = await get_message_id(message)
+        if f_msg_id:
+            msg = await bot.send_message(
+                chat_id,
+                "<b>Iltimos, oxirgi xabarni/faylni ma'lumotlar bazasi kanalidan yuboring. (Qoute bilan yo'naltirish)</b>\n\n"
+                "<b>yoki Kanal ma'lumotlar bazasidan post havolasini yuboring</b>",
+                parse_mode="HTML"
+            )
+            dp.register_message_handler(process_second_message, state=None, content_types=types.ContentType.ANY, f_msg_id=f_msg_id)
+        else:
+            await bot.send_message(chat_id, "❌ <b>XATO</b>\n\n<b>Ushbu yoʻnaltirilgan post maʼlumotlar bazasi kanalidan emas</b>", parse_mode="HTML")
+            await batch(message)
+    except Exception as e:
+        await bot.send_message(chat_id, str(e))
+
+async def process_second_message(message: types.Message, f_msg_id: int):
+    chat_id = message.chat.id
+
+    try:
+        s_msg_id = await get_message_id(message)
+        if s_msg_id:
+            string = f"get-{f_msg_id * abs(bot.db_channel.id)}-{s_msg_id * abs(bot.db_channel.id)}"
+            base64_string = await encode(string)
+            link = f"https://t.me/{(await bot.get_me()).username}?start={base64_string}"
+            await bot.send_message(chat_id, f"<b>Fayl almashish havolasi muvaffaqiyatli yaratildi:</b>\n\n{link}", parse_mode="HTML")
+        else:
+            await bot.send_message(chat_id, "❌ <b>XATO</b>\n\n<b>Ushbu yoʻnaltirilgan post maʼlumotlar bazasi kanalidan emas</b>", parse_mode="HTML")
+            await batch(message)
+    except Exception as e:
+        await bot.send_message(chat_id, str(e))
+
 
 @dp.message_handler(commands=['genlink'])
 async def link_generator(message: types.Message):
@@ -291,6 +446,7 @@ async def more(message: types.Message):
 
     if get_step(message.chat.id) == "add_channel" and message.text not in ["/start", "/admin"]:
         if put_channel(message.text):
+            put_channel(message.text)
             await bot.send_message(chat_id=message.chat.id, text=f"{message.text} kanali qabul qilindi!")
             put_step(cid=int(admin_id), step="!!!")
         else:
@@ -367,53 +523,7 @@ ochirilgan hisoblar: <code>{deleted}</code></b>"""
             )
             asyncio.sleep(8)
             await bot.delete_message(message.chat.id, msg.message_id)
-
-@dp.message_handler(content_types=['video'])
-async def put_videos(message: types.Message):
-    step = get_step(cid=message.chat.id)
-    print("step", step)
-    print(message.video)
-    if str(message.chat.id) in conf.ADMINS and step == "start_put_video":
-        reply_text = await bot.reply_to(message, "<code>Bir daqiqa kuting...</code>", parse_mode='HTML')
-        try:
-            post_message = await bot.copy_message(
-                chat_id=conf.CHANNEL_ID, from_chat_id=message.chat.id, message_id=message.message_id, disable_notification=True
-            )
-        except FloodWait as e:
-            time_to_wait = e.retry_after
-            await bot.send_message(message.chat.id, f"Flood kutish. {time_to_wait} soniyadan keyin qayta uriniladi.")
-            await asyncio.sleep(time_to_wait)
-            post_message = await bot.copy_message(
-                chat_id=conf.CHANNEL_ID, from_chat_id=message.chat.id, message_id=message.message_id, disable_notification=True
-            )
-        except Exception as e:
-            print(e)
-            await bot.edit_message_text("<b>Xatolik yuz berdi...</b>", chat_id=reply_text.chat.id, message_id=reply_text.message_id, parse_mode='HTML')
-            return
-
-        converted_id = post_message.message_id * abs(int(conf.CHANNEL_ID))
-        string = f"get-{converted_id}"
-        base64_string = encode(string)
-        link = f"https://t.me/{await bot.get_me().username}?start={base64_string}"
-
-        await bot.edit_message_text(
-            f"<b>Fayl almashish havolasi muvaffaqiyatli yaratildi:</b>\n\n{link}",
-            chat_id=reply_text.chat.id,
-            message_id=reply_text.message_id,
-            parse_mode='HTML'
-        )
-
-        if not conf.DISABLE_CHANNEL_BUTTON:
-            try:
-                await bot.edit_message_reply_markup(
-                    chat_id=post_message.chat.id,
-                    message_id=post_message.message_id,
-                    reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton(text="Channel Button", url=link))
-                )
-            except Exception:
-                pass
-    else:
-        await bot.send_message(chat_id=message.chat.id, text="Brat siz admin emassiz(")
+        
 
 @dp.callback_query_handler(lambda call: True)
 async def callback_query(call: types.CallbackQuery):
@@ -456,6 +566,4 @@ async def callback_query(call: types.CallbackQuery):
         print(f"An error occurred: {e}")
 
 if __name__ == '__main__':
-    x = bot.get_me()
-    print(x)
     executor.start_polling(dp, skip_updates=True)
